@@ -17,6 +17,7 @@ import textwrap
 from typing import List
 import os
 import re
+import random
 
 import requests
 import streamlit as st
@@ -389,9 +390,10 @@ if display_keyword:
                 prompt = _build_prompt(effective_keywords)
                 content = ""
                 last_error = None
-                # Try OpenRouter models round-robin
+                # Try OpenRouter models in randomized order each run
                 if openrouter_key:
-                    for m in MODELS:
+                    randomized_models = random.sample(MODELS, k=len(MODELS))
+                    for m in randomized_models:
                         try:
                             model_status.info(f"Using model: {m}")
                             content = _openrouter_chat(m, prompt)
