@@ -385,15 +385,22 @@ if display_keyword:
             return updated_prefix
 
         blog_output = st.session_state.get("blog_output", "")
-        # --- New controls: Choose specific model or pick any ---
-        st.markdown("Pick a specific model below to generate with that model, or click **Pick any** to let the app choose randomly.")
+        # --- New controls: Two buttons with collapsible model list ---
+        st.markdown("Click **Select Model** to show/hide the model list. Or click **Pick any Model** to let the app choose randomly.")
         can_generate = bool(effective_keywords) and bool(openrouter_key or gemini_key)
 
-        btn_any = st.button("Pick any", type="primary", disabled=not can_generate)
+        col_any, col_sel = st.columns([1, 1])
+        btn_any = col_any.button("Pick any Model", type="primary", disabled=not can_generate)
 
-        # Render buttons for each OpenRouter model in a grid (3 columns per row)
+        # Toggle show/hide for model list
+        if "show_model_list" not in st.session_state:
+            st.session_state["show_model_list"] = False
+        if col_sel.button("Select Model", help="Show or hide available models"):
+            st.session_state["show_model_list"] = not st.session_state["show_model_list"]
+
+        # Render buttons for each OpenRouter model in a grid (3 columns per row) when visible
         selected_model = None
-        if openrouter_key:
+        if openrouter_key and st.session_state["show_model_list"]:
             cols = st.columns(3)
             for idx, m in enumerate(MODELS):
                 with cols[idx % 3]:
