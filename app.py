@@ -385,53 +385,83 @@ if display_keyword:
             return updated_prefix
 
         blog_output = st.session_state.get("blog_output", "")
-        if st.button("Generate Blog", type="primary", disabled=(not effective_keywords) or not (openrouter_key or gemini_key)):
-            with st.spinner("Generating blog (trying multiple models)..."):
-                prompt = _build_prompt(effective_keywords)
-                content = ""
-                last_error = None
-                # Try OpenRouter models in randomized order each run
-                if openrouter_key:
-                    randomized_models = random.sample(MODELS, k=len(MODELS))
-                    for m in randomized_models:
+        # --- New controls: Choose specific model or pick any ---
+        st.markdown("Pick a specific model below to generate with that model, or click **Pick any** to let the app choose randomly.")
+        can_generate = bool(effective_keywords) and bool(openrouter_key or gemini_key)
+
+        btn_any = st.button("Pick any", type="primary", disabled=not can_generate)
+
+        # Render buttons for each OpenRouter model in a grid (3 columns per row)
+        selected_model = None
+        if openrouter_key:
+            cols = st.columns(3)
+            for idx, m in enumerate(MODELS):
+                with cols[idx % 3]:
+                    if st.button(m, key=f"btn_model_{idx}", help="Generate using this model via OpenRouter"):
+                        selected_model = m
+
+        if btn_any or selected_model is not None:
+            prompt = _build_prompt(effective_keywords)
+            content = ""
+            last_error = None
+            with st.spinner("Generating blog..."):
+                if selected_model is not None:
+                    # User chose a specific OpenRouter model
+                    if not openrouter_key:
+                        st.error("OpenRouter API key is required to use a specific model.")
+                    else:
                         try:
-                            model_status.info(f"Using model: {m}")
-                            content = _openrouter_chat(m, prompt)
-                            if content and len(content.split()) >= 200:  # sanity check for non-empty
-                                model_status.success(f"Completed with: {m}")
-                                break
+                            model_status.info(f"Using model: {selected_model}")
+                            content = _openrouter_chat(selected_model, prompt)
+                            if content and len(content.split()) >= 200:
+                                model_status.success(f"Completed with: {selected_model}")
                         except Exception as e:
                             last_error = e
-                            continue
-                # Fallback to Gemini
-                if (not content or len(content.strip()) == 0) and gemini_key:
-                    try:
-                        model_status.info("Using model: google/gemini-1.5-flash")
-                        content = _gemini_generate(prompt)
-                        if content and len(content.strip()) > 0:
-                            model_status.success("Completed with: google/gemini-1.5-flash")
-                    except Exception as e:
-                        last_error = e
-
-                if not content:
-                    st.error(f"Blog generation failed. Last error: {last_error}")
                 else:
-                    # Promote mierae.com aggressively (ensure >=3 mentions with CTA insertions)
-                    content = _inject_promo(content)
+                    # Pick any: randomized order with round-robin fallback to Gemini
+                    # Try OpenRouter models first (randomized)
+                    if openrouter_key:
+                        randomized_models = random.sample(MODELS, k=len(MODELS))
+                        for m in randomized_models:
+                            try:
+                                model_status.info(f"Using model: {m}")
+                                content = _openrouter_chat(m, prompt)
+                                if content and len(content.split()) >= 200:
+                                    model_status.success(f"Completed with: {m}")
+                                    break
+                            except Exception as e:
+                                last_error = e
+                                continue
+                    # Fallback to Gemini if nothing worked or no OpenRouter key
+                    if (not content or len(content.strip()) == 0) and gemini_key:
+                        try:
+                            model_status.info("Using model: google/gemini-1.5-flash")
+                            content = _gemini_generate(prompt)
+                            if content and len(content.strip()) > 0:
+                                model_status.success("Completed with: google/gemini-1.5-flash")
+                        except Exception as e:
+                            last_error = e
 
-                    # Ensure Contact Us section is present; append if missing
-                    if "contact us" not in content.lower() or ("9070607050" not in content and "solar@mierae.com" not in content.lower()):
-                        content = content.rstrip() + "\n\n" + CONTACT_US_MD
+            if not content:
+                err_msg = f"Blog generation failed. Last error: {last_error}" if last_error else "Blog generation failed."
+                st.error(err_msg)
+            else:
+                # Promote mierae.com aggressively (ensure >=3 mentions with CTA insertions)
+                content = _inject_promo(content)
 
-                    st.session_state["blog_output"] = content
-                    # Persist which keywords were used
-                    used = list(dict.fromkeys(effective_keywords))  # preserve order, dedupe
-                    main_kw = display_keyword if (include_base and display_keyword) else (used[0] if used else "")
-                    others = [k for k in used if k != main_kw]
-                    st.session_state["blog_used_keywords"] = used
-                    st.session_state["blog_main_keyword"] = main_kw
-                    st.session_state["blog_other_keywords"] = others
-                    blog_output = content
+                # Ensure Contact Us section is present; append if missing
+                if "contact us" not in content.lower() or ("9070607050" not in content and "solar@mierae.com" not in content.lower()):
+                    content = content.rstrip() + "\n\n" + CONTACT_US_MD
+
+                st.session_state["blog_output"] = content
+                # Persist which keywords were used
+                used = list(dict.fromkeys(effective_keywords))  # preserve order, dedupe
+                main_kw = display_keyword if (include_base and display_keyword) else (used[0] if used else "")
+                others = [k for k in used if k != main_kw]
+                st.session_state["blog_used_keywords"] = used
+                st.session_state["blog_main_keyword"] = main_kw
+                st.session_state["blog_other_keywords"] = others
+                blog_output = content
 
         if blog_output:
             st.markdown("---")
