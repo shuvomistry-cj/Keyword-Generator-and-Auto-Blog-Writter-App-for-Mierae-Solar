@@ -173,12 +173,12 @@ with st.sidebar:
     st.subheader("API Keys")
     openrouter_key = st.text_input(
         "OpenRouter API Key",
-        value=os.environ.get("OPENROUTER_API_KEY", "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"),
+        value=os.environ.get("OPENROUTER_API_KEY", ""),
         type="password",
     )
     gemini_key = st.text_input(
         "Gemini API Key",
-        value=os.environ.get("GEMINI_API_KEY", "AIzaSyCzALtnlspORjtWgqK5u2vDKRAQaG-KHck"),
+        value=os.environ.get("GEMINI_API_KEY", ""),
         type="password",
     )
 
